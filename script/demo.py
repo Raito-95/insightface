@@ -141,11 +141,15 @@ class FaceRecognitionSystem:
             self.start_new_recording(frame)
 
         if self.recording and self.video_writer is not None:
-            self.video_writer.write(frame)
-            self.recorded_frame_count += 1
+            try:
+                self.video_writer.write(frame)
+                self.recorded_frame_count += 1
 
-            if self.recorded_frame_count >= self.VIDEO_LENGTH_SECONDS * self.FPS:
-                self.finalize_recording()
+                if self.recorded_frame_count >= self.VIDEO_LENGTH_SECONDS * self.FPS:
+                    self.finalize_recording()
+            except cv2.error as e:
+                logging.error(f"Failed to write frame: {e}")
+                self.handle_recording_failure()
 
     def start_new_recording(self, frame):
         self.recording = True
@@ -237,7 +241,7 @@ class FaceRecognitionSystem:
                             2,
                         )
                         logging.info(
-                            f"Detected known face: {matching_name} with similarity {similarity}"
+                            f"Detected known face: {matching_name} with similarity {similarity:.2f}"
                         )
                         break
 
@@ -257,7 +261,7 @@ class FaceRecognitionSystem:
                 self.handle_no_face_detected()
 
     def handle_no_face_detected(self):
-        if self.recording:
+        if self.recording and not self.face_detected:
             logging.info(
                 f"Marking {self.current_video_filename} for deletion due to no face detected"
             )
