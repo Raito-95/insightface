@@ -1,0 +1,9 @@
+{
+    "data_dir": "./data/",
+    "result_dir": "./result/",
+    "ctx_id": 0,
+    "video_source": 0,
+    "fps": 10,
+    "video_length_seconds": 10,
+    "show_video": true
+}

@@ -2,253 +2,319 @@ import cv2
 import numpy as np
 import os
 import pickle
+import json
+import logging
 from insightface.app import FaceAnalysis
 import time
 import threading
 import queue
 import atexit
 
-# Direct parameters
-DATA_DIR = "./data/"
-RESULT_DIR = "./result/"
-CTX_ID = 0  # context id, <0 means using CPU
-FPS = 15  # frame rate
-VIDEO_SOURCE = 0
-RETRY_INTERVAL = 5  # interval in seconds to retry opening the camera
-SHOW_VIDEO = False  # flag to show video
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s:%(message)s")
 
-# Ensure result directory exists
-os.makedirs(RESULT_DIR, exist_ok=True)
 
-# Initialize FaceAnalysis application
-app = FaceAnalysis()
-app.prepare(ctx_id=CTX_ID)
+class FaceRecognitionSystem:
+    def __init__(self, config_path="config.json"):
+        self.load_config(config_path)
+        self.init_directories()
+        self.app = FaceAnalysis()
+        self.app.prepare(ctx_id=self.CTX_ID)
+        self.load_known_faces()
 
-# Build known face embeddings and names database
-known_images = [os.path.join(DATA_DIR, f) for f in os.listdir(DATA_DIR) if f.endswith(".png")]
-known_names = [os.path.splitext(f)[0] for f in os.listdir(DATA_DIR) if f.endswith(".png")]
+        self.stop_event = threading.Event()
+        self.start_recording_event = threading.Event()
 
-known_embeddings = []
+        self.recording = False
+        self.current_video_filename: str | None = None
+        self.recorded_frame_count = 0
+        self.face_detected = False
+        self.files_to_delete = queue.Queue()
 
-for img_path in known_images:
-    img = cv2.imread(img_path)
-    faces = app.get(img)
-    if faces:
-        known_embeddings.append(faces[0].normed_embedding)
+        self.condition = threading.Condition()
+        self.file_in_use = False
 
-# Save known face embeddings and names
-with open("known_faces.pkl", "wb") as f:
-    pickle.dump((known_embeddings, known_names), f)
+        self.frame_queue = queue.Queue(maxsize=5)
+        self.video_writer = None
 
-# Load known face embeddings and names
-with open("known_faces.pkl", "rb") as f:
-    known_embeddings, known_names = pickle.load(f)
+    def load_config(self, config_path):
+        with open(config_path) as config_file:
+            config = json.load(config_file)
+        self.DATA_DIR = config["data_dir"]
+        self.RESULT_DIR = config["result_dir"]
+        self.CTX_ID = config["ctx_id"]
+        self.VIDEO_SOURCE = config["video_source"]
+        self.FPS = config["fps"]
+        self.VIDEO_LENGTH_SECONDS = config["video_length_seconds"]
+        self.SHOW_VIDEO = config["show_video"]
 
-def find_matching_name(embedding, known_embeddings, known_names, threshold=0.5):
-    sims = np.dot(known_embeddings, embedding)
-    best_match_idx = np.argmax(sims)
-    if sims[best_match_idx] >= threshold:
-        return known_names[best_match_idx], sims[best_match_idx]
-    else:
-        return None, None
+    def init_directories(self):
+        os.makedirs(self.RESULT_DIR, exist_ok=True)
 
-stop_event = threading.Event()
-start_recording_event = threading.Event()
+    def load_known_faces(self):
+        known_images = [
+            os.path.join(self.DATA_DIR, f)
+            for f in os.listdir(self.DATA_DIR)
+            if f.endswith(".png")
+        ]
+        known_names = [
+            os.path.splitext(f)[0]
+            for f in os.listdir(self.DATA_DIR)
+            if f.endswith(".png")
+        ]
 
-# Variables to manage video recording
-recording = False
-current_video_filename = None
-recorded_frame_count = 0
-face_detected = False
-files_to_delete = []  # List to store filenames that need to be deleted
+        known_embeddings = []
 
-# Define condition variable and file usage status
-condition = threading.Condition()
-file_in_use = False
+        for img_path in known_images:
+            img = cv2.imread(img_path)
+            faces = self.app.get(img)
+            if faces:
+                known_embeddings.append(faces[0].normed_embedding)
 
-# Queue for sharing frames and results
-frame_queue = queue.Queue()
-result_queue = queue.Queue()
+        with open("known_faces.pkl", "wb") as f:
+            pickle.dump((known_embeddings, known_names), f)
 
-def print_camera_specs(cap):
-    specs = {
-        "Frame Width": cap.get(cv2.CAP_PROP_FRAME_WIDTH),
-        "Frame Height": cap.get(cv2.CAP_PROP_FRAME_HEIGHT),
-        "FPS": cap.get(cv2.CAP_PROP_FPS),
-    }
-    for spec, value in specs.items():
-        print(f"{spec}: {value}")
+        with open("known_faces.pkl", "rb") as f:
+            self.known_embeddings, self.known_names = pickle.load(f)
 
-def capture_frames():
-    global recording, current_video_filename, recorded_frame_count, face_detected, file_in_use
-
-    while not stop_event.is_set():
-        cap = cv2.VideoCapture(VIDEO_SOURCE)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 10)
-
-        if not cap.isOpened():
-            print(f"Failed to open camera. Retrying in {RETRY_INTERVAL} seconds...")
-            time.sleep(RETRY_INTERVAL)
-            continue
-
-        cap.set(cv2.CAP_PROP_FPS, FPS)
-        print_camera_specs(cap)
-
-        video_writer = None
-        while not stop_event.is_set():
-            ret, frame = cap.read()
-            if not ret:
-                print("Failed to read frame. Retrying...")
-                if recording and video_writer is not None:
-                    video_writer.release()
-                    if current_video_filename is not None:
-                        if current_video_filename in files_to_delete:
-                            os.remove(current_video_filename)
-                            files_to_delete.remove(current_video_filename)
-                            print(f"Deleted {current_video_filename} due to read frame failure")
-                    recording = False
-                    current_video_filename = None
-                    recorded_frame_count = 0
-                    face_detected = False
-                    file_in_use = False
-                break
-
-            frame_queue.put(frame)
-
-            if SHOW_VIDEO:
-                resized_frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
-                cv2.imshow("Original Frame", resized_frame)
-                if cv2.waitKey(1000 // FPS) & 0xFF == ord("q"):
-                    stop_event.set()
-                    break
-
-            with condition:
-                if start_recording_event.is_set() and not recording:
-                    recording = True
-                    recorded_frame_count = 0
-                    current_video_filename = os.path.join(RESULT_DIR, f"recording_{int(time.time())}.mp4")
-                    video_writer = cv2.VideoWriter(current_video_filename, cv2.VideoWriter_fourcc(*"mp4v"), FPS, (int(frame.shape[1]), int(frame.shape[0])))
-                    print(f"Started recording: {current_video_filename}")
-                    file_in_use = True
-                    files_to_delete.append(current_video_filename)
-
-                if recording and video_writer is not None:
-                    video_writer.write(frame)
-                    recorded_frame_count += 1
-
-                    if recorded_frame_count >= 10 * FPS:
-                        video_writer.release()
-                        video_writer = None
-                        file_in_use = False
-                        condition.notify_all()
-                        if not face_detected:
-                            print(f"Deleting {current_video_filename} due to no face detected")
-                        else:
-                            print(f"Saved {current_video_filename}")
-                            if current_video_filename in files_to_delete:
-                                files_to_delete.remove(current_video_filename)
-                        recording = False
-                        start_recording_event.clear()
-                        recorded_frame_count = 0
-                        face_detected = False
-                        delete_pending_files()
-
-                if recording and not start_recording_event.is_set():
-                    if video_writer is not None:
-                        video_writer.release()
-                        video_writer = None
-                        file_in_use = False
-                        condition.notify_all()
-                    print(f"Marking {current_video_filename} for deletion due to no face detected")
-                    recording = False
-                    if current_video_filename is not None:
-                        files_to_delete.append(current_video_filename)
-                    recorded_frame_count = 0
-                    face_detected = False
-                    delete_pending_files()
-
-        cap.release()
-        if SHOW_VIDEO:
-            cv2.destroyAllWindows()
-
-def process_frames():
-    global face_detected, recording, file_in_use, recorded_frame_count
-    while not stop_event.is_set():
-        try:
-            while not frame_queue.empty():
-                frame_queue.get_nowait()
-            frame = frame_queue.get()
-        except queue.Empty:
-            continue
-
-        faces = app.get(frame)
-        face_present = False
-        face_detected = False
-        results = []
-
-        if faces:
-            for face in faces:
-                matching_name, similarity = find_matching_name(face.normed_embedding, known_embeddings, known_names)
-                if matching_name is not None and similarity is not None:
-                    face_present = True
-                    face_detected = True
-                    bbox = face.bbox.astype(int)
-                    results.append((bbox, matching_name, similarity))
-                    print(f"Detected known face: {matching_name} with similarity {similarity}")
-                    break
-
-        result_queue.put(results)
-
-        if face_present:
-            start_recording_event.set()
+    def find_matching_name(self, embedding, threshold=0.5):
+        sims = np.dot(self.known_embeddings, embedding)
+        best_match_idx = np.argmax(sims)
+        if sims[best_match_idx] >= threshold:
+            return self.known_names[best_match_idx], sims[best_match_idx]
         else:
-            if recording:
-                print(f"Marking {current_video_filename} for deletion due to no face detected")
-                with condition:
-                    recording = False
-                    while file_in_use:
-                        condition.wait()
-                    if current_video_filename is not None:
-                        files_to_delete.append(current_video_filename)
-                recorded_frame_count = 0
-                face_detected = False
-                delete_pending_files()
-            start_recording_event.clear()
+            return None, None
 
-def delete_pending_files():
-    global files_to_delete
-    with condition:
-        files_to_delete_copy = files_to_delete.copy()
-        for filename in files_to_delete_copy:
-            if not file_in_use and os.path.exists(filename):
-                try:
-                    os.remove(filename)
-                    print(f"Deleted {filename}")
-                    files_to_delete.remove(filename)
-                except PermissionError:
-                    print(f"Unable to delete {filename}. File is in use.")
+    def print_camera_specs(self, cap):
+        specs = {
+            "Frame Width": cap.get(cv2.CAP_PROP_FRAME_WIDTH),
+            "Frame Height": cap.get(cv2.CAP_PROP_FRAME_HEIGHT),
+            "FPS": cap.get(cv2.CAP_PROP_FPS),
+        }
+        for spec, value in specs.items():
+            logging.info(f"{spec}: {value}")
 
-capture_thread = threading.Thread(target=capture_frames)
-process_thread = threading.Thread(target=process_frames)
+    def capture_frames(self):
+        while not self.stop_event.is_set():
+            try:
+                cap = cv2.VideoCapture(self.VIDEO_SOURCE)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 10)
 
-def cleanup():
-    print("Cleaning up...")
-    stop_event.set()
-    capture_thread.join()
-    process_thread.join()
-    delete_pending_files()
-    if SHOW_VIDEO:
-        cv2.destroyAllWindows()
-    print("Cleanup complete.")
+                if not cap.isOpened():
+                    logging.error(f"Failed to open camera. Retrying in 5 seconds...")
+                    time.sleep(5)
+                    continue
 
-atexit.register(cleanup)
+                cap.set(cv2.CAP_PROP_FPS, self.FPS)
+                self.print_camera_specs(cap)
 
-capture_thread.start()
-process_thread.start()
+                while not self.stop_event.is_set():
+                    ret, frame = cap.read()
+                    if not ret:
+                        logging.error("Failed to read frame. Retrying...")
+                        self.handle_recording_failure()
+                        break
 
-try:
-    while capture_thread.is_alive() and process_thread.is_alive():
-        capture_thread.join(timeout=1)
-        process_thread.join(timeout=1)
-except KeyboardInterrupt:
-    cleanup()
+                    self.record_frame(frame)
+
+                    try:
+                        self.frame_queue.put_nowait(frame)
+                    except queue.Full:
+                        pass
+
+                cap.release()
+            except Exception as e:
+                logging.exception("Error during frame capture")
+                self.cleanup()
+
+    def handle_recording_failure(self):
+        if self.recording and self.video_writer is not None:
+            self.video_writer.release()
+            if self.current_video_filename:
+                self.files_to_delete.put(self.current_video_filename)
+                logging.info(
+                    f"Queued {self.current_video_filename} for deletion due to read frame failure"
+                )
+            self.reset_recording_state()
+
+    def record_frame(self, frame):
+        if self.start_recording_event.is_set() and not self.recording:
+            self.start_new_recording(frame)
+
+        if self.recording and self.video_writer is not None:
+            self.video_writer.write(frame)
+            self.recorded_frame_count += 1
+
+            if self.recorded_frame_count >= self.VIDEO_LENGTH_SECONDS * self.FPS:
+                self.finalize_recording()
+
+    def start_new_recording(self, frame):
+        self.recording = True
+        self.recorded_frame_count = 0
+        self.current_video_filename = os.path.join(
+            self.RESULT_DIR, f"recording_{int(time.time())}.mp4"
+        )
+        logging.info(f"Started recording: {self.current_video_filename}")
+        self.file_in_use = True
+        self.video_writer = cv2.VideoWriter(
+            self.current_video_filename,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            self.FPS,
+            (int(frame.shape[1]), int(frame.shape[0])),
+        )
+        self.files_to_delete.put(self.current_video_filename)
+
+    def finalize_recording(self):
+        if self.video_writer is not None:
+            self.video_writer.release()
+        self.file_in_use = False
+        with self.condition:
+            self.condition.notify_all()
+        if not self.face_detected and self.current_video_filename:
+            logging.info(
+                f"Queued {self.current_video_filename} for deletion due to no face detected"
+            )
+        else:
+            if self.current_video_filename:
+                logging.info(f"Saved {self.current_video_filename}")
+        self.reset_recording_state()
+
+    def mark_file_for_deletion(self):
+        if self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+            self.file_in_use = False
+            with self.condition:
+                self.condition.notify_all()
+        if self.current_video_filename:
+            logging.info(
+                f"Queued {self.current_video_filename} for deletion due to no face detected"
+            )
+            self.files_to_delete.put(self.current_video_filename)
+        self.reset_recording_state()
+
+    def reset_recording_state(self):
+        self.recording = False
+        self.current_video_filename = None
+        self.recorded_frame_count = 0
+        self.face_detected = False
+        self.file_in_use = False
+        self.video_writer = None
+
+    def process_frames(self):
+        while not self.stop_event.is_set():
+            try:
+                frame = self.frame_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+
+            faces = self.app.get(frame)
+            face_present = False
+            self.face_detected = False
+
+            if faces:
+                for face in faces:
+                    matching_name, similarity = self.find_matching_name(
+                        face.normed_embedding
+                    )
+                    if matching_name is not None and similarity is not None:
+                        face_present = True
+                        self.face_detected = True
+                        bbox = face.bbox.astype(int)
+                        cv2.rectangle(
+                            frame,
+                            (bbox[0], bbox[1]),
+                            (bbox[2], bbox[3]),
+                            (0, 255, 0),
+                            2,
+                        )
+                        cv2.putText(
+                            frame,
+                            f"{matching_name} ({similarity:.2f})",
+                            (bbox[0], bbox[1] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.9,
+                            (0, 255, 0),
+                            2,
+                        )
+                        logging.info(
+                            f"Detected known face: {matching_name} with similarity {similarity}"
+                        )
+                        break
+
+            if self.SHOW_VIDEO:
+                resized_frame = cv2.resize(
+                    frame, (frame.shape[1] // 2, frame.shape[0] // 2)
+                )
+                cv2.imshow("Frame", resized_frame)
+                if cv2.waitKey(1000 // self.FPS) & 0xFF == ord("q"):
+                    self.stop_event.set()
+                    self.cleanup()
+                    break
+
+            if face_present:
+                self.start_recording_event.set()
+            else:
+                self.handle_no_face_detected()
+
+    def handle_no_face_detected(self):
+        if self.recording:
+            logging.info(
+                f"Marking {self.current_video_filename} for deletion due to no face detected"
+            )
+            self.mark_file_for_deletion()
+        self.start_recording_event.clear()
+
+    def delete_pending_files(self):
+        while not self.stop_event.is_set() or not self.files_to_delete.empty():
+            try:
+                filename = self.files_to_delete.get(timeout=1)
+                if filename and os.path.exists(filename):
+                    try:
+                        os.remove(filename)
+                        logging.info(f"Deleted {filename}")
+                    except PermissionError:
+                        logging.warning(f"Unable to delete {filename}. File is in use.")
+                self.files_to_delete.task_done()
+            except queue.Empty:
+                continue
+
+    def cleanup(self):
+        logging.info("Cleaning up...")
+        self.stop_event.set()
+        if self.capture_thread is not threading.current_thread():
+            self.capture_thread.join()
+        if self.process_thread is not threading.current_thread():
+            self.process_thread.join()
+        if self.delete_thread is not threading.current_thread():
+            self.delete_thread.join()
+        if self.SHOW_VIDEO:
+            cv2.destroyAllWindows()
+        logging.info("Cleanup complete.")
+
+    def run(self):
+        self.capture_thread = threading.Thread(target=self.capture_frames)
+        self.process_thread = threading.Thread(target=self.process_frames)
+        self.delete_thread = threading.Thread(target=self.delete_pending_files)
+
+        atexit.register(self.cleanup)
+
+        self.capture_thread.start()
+        self.process_thread.start()
+        self.delete_thread.start()
+
+        try:
+            while (
+                self.capture_thread.is_alive()
+                and self.process_thread.is_alive()
+                and self.delete_thread.is_alive()
+            ):
+                self.capture_thread.join(timeout=1)
+                self.process_thread.join(timeout=1)
+                self.delete_thread.join(timeout=1)
+        except KeyboardInterrupt:
+            self.cleanup()
+
+
+if __name__ == "__main__":
+    system = FaceRecognitionSystem()
+    system.run()
