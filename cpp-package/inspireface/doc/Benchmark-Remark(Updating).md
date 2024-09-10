@@ -1,7 +1,35 @@
 # Benchmark Remark(Updating)
 
 The benchmark tests will be continuously updated.
-## Pikachu
+
+## Megatron_Apple(ANE, Apple Neural Engine)
+
+### Device: iPhone13, Apple A15
+
+| **Benchmark**          | **Loops** | **Total Time** | **Average Time** |
+| ---------------------- | --------- | -------------- | ---------------- |
+| Face Detect@160        | 1000      | 711 ms         | **0.71 ms**      |
+| Face Detect@192        | 1000      | 832ms          | **0.83ms**       |
+| Face Detect@256        | 1000      | 931ms          | **0.92ms**       |
+| Face Detect@320        | 1000      | 1324ms         | **1.32ms**       |
+| Face Detect@640        | 1000      | 3881ms         | **3.88ms**       |
+| Face Extract(**MNet**) | 1000      | 853ms          | **0.85ms**       |
+| Face Extract(**R50**)  | 1000      | 3856ms         | **3.86ms**       |
+
+### Device: Mac mini 2023 , Apple M2
+| **Benchmark**          | **Loops** | **Total Time** | **Average Time** |
+| ---------------------- | --------- | -------------- | ---------------- |
+| Face Detect@160        | 1000      | 414 ms         | **0.45 ms**      |
+| Face Detect@192        | 1000      | 574ms          | **0.57ms**       |
+| Face Detect@256        | 1000      | 769ms          | **0.77ms**       |
+| Face Detect@320        | 1000      | 1073ms         | **1.07ms**       |
+| Face Detect@640        | 1000      | 3743ms         | **3.74ms**       |
+| Face Extract(**MNet**) | 1000      | 573ms          | **0.57ms**       |
+| Face Extract(**R50**)  | 1000      | 3527ms         | **3.53ms**       |
+
+**Note**: The above data inference backend uses CoreML.
+
+## Pikachu(CPU)
 ### Device: Macbook pro 16-inch, 2019 2.6 GHz Intel Core i7
 | **Benchmark** | **Loops** | **Total Time** | **Average Time** |
 | --- | --- | --- | --- |
@@ -15,7 +43,7 @@ The benchmark tests will be continuously updated.
 | Search Face from 5k | 1000 | 364.21ms | **0.36ms** |
 | Search Face from 10k | 1000 | 1193.26ms | **1.19ms** |
 
-## Gundam_RV1109
+## Gundam_RV1109(RKNPU)
 ### Device: RV1126
 | **Benchmark** | **Loops** | **Total Time** | **Average Time** |
 | --- | --- | --- | --- |
