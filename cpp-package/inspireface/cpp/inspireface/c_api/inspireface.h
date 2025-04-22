@@ -1,9 +1,10 @@
-//
-// Created by tunm on 2023/10/3.
-//
+/**
+ * Created by Jingyu Yan
+ * @date 2024-10-01
+ */
 
-#ifndef HYPERFACEREPO_INSPIREFACE_H
-#define HYPERFACEREPO_INSPIREFACE_H
+#ifndef INSPIREFACE_H
+#define INSPIREFACE_H
 
 #include <stdint.h>
 #include "intypedef.h"
@@ -23,16 +24,16 @@
 extern "C" {
 #endif
 
-#define HF_ENABLE_NONE 0x00000000              ///< Flag to enable no features.
-#define HF_ENABLE_FACE_RECOGNITION 0x00000002  ///< Flag to enable face recognition feature.
-#define HF_ENABLE_LIVENESS 0x00000004          ///< Flag to enable RGB liveness detection feature.
-#define HF_ENABLE_IR_LIVENESS \
-    0x00000008  ///< Flag to enable IR (Infrared) liveness detection feature.
-#define HF_ENABLE_MASK_DETECT 0x00000010     ///< Flag to enable mask detection feature.
-#define HF_ENABLE_FACE_ATTRIBUTE 0x00000020  ///< Flag to enable face attribute prediction feature.
-#define HF_ENABLE_PLACEHOLDER_ 0x00000040    ///< -
-#define HF_ENABLE_QUALITY 0x00000080         ///< Flag to enable face quality assessment feature.
-#define HF_ENABLE_INTERACTION 0x00000100     ///< Flag to enable interaction feature.
+#define HF_ENABLE_NONE 0x00000000                  ///< Flag to enable no features.
+#define HF_ENABLE_FACE_RECOGNITION 0x00000002      ///< Flag to enable face recognition feature.
+#define HF_ENABLE_LIVENESS 0x00000004              ///< Flag to enable RGB liveness detection feature.
+#define HF_ENABLE_IR_LIVENESS 0x00000008           ///< Flag to enable IR (Infrared) liveness detection feature.
+#define HF_ENABLE_MASK_DETECT 0x00000010           ///< Flag to enable mask detection feature.
+#define HF_ENABLE_FACE_ATTRIBUTE 0x00000020        ///< Flag to enable face attribute prediction feature.
+#define HF_ENABLE_PLACEHOLDER_ 0x00000040          ///< -
+#define HF_ENABLE_QUALITY 0x00000080               ///< Flag to enable face quality assessment feature.
+#define HF_ENABLE_INTERACTION 0x00000100           ///< Flag to enable interaction feature.
+#define HF_ENABLE_DETECT_MODE_LANDMARK 0x00000200  ///< Flag to enable landmark detection in detection mode
 
 /**
  * Camera stream format.
@@ -63,7 +64,7 @@ typedef enum HFRotation {
  * Defines the structure for image data stream.
  */
 typedef struct HFImageData {
-    uint8_t *data;         ///< Pointer to the image data stream.
+    HPUInt8 data;          ///< Pointer to the image data stream.
     HInt32 width;          ///< Width of the image.
     HInt32 height;         ///< Height of the image.
     HFImageFormat format;  ///< Format of the image, indicating the data stream format to be parsed.
@@ -82,6 +83,45 @@ typedef struct HFImageData {
 HYPER_CAPI_EXPORT extern HResult HFCreateImageStream(PHFImageData data, HFImageStream *handle);
 
 /**
+ * @brief Create an empty image stream instance.
+ *
+ * This function is used to create an instance of a data buffer stream with the given image data.
+ *
+ * @param handle Pointer to the stream handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCreateImageStreamEmpty(HFImageStream *handle);
+
+/**
+ * @brief Set the buffer of the image stream.
+ *
+ * @param handle Pointer to the stream handle.
+ * @param buffer Pointer to the buffer.
+ * @param width Width of the image.
+ * @param height Height of the image.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageStreamSetBuffer(HFImageStream handle, HPUInt8 buffer, HInt32 width, HInt32 height);
+
+/**
+ * @brief Set the rotation of the image stream.
+ *
+ * @param handle Pointer to the stream handle.
+ * @param rotation Rotation angle of the image.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageStreamSetRotation(HFImageStream handle, HFRotation rotation);
+
+/**
+ * @brief Set the format of the image stream.
+ *
+ * @param handle Pointer to the stream handle.
+ * @param format Format of the image.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageStreamSetFormat(HFImageStream handle, HFImageFormat format);
+
+/**
  * @brief Release the instantiated DataBuffer object.
  *
  * This function is used to release the DataBuffer object that has been previously instantiated.
@@ -90,6 +130,126 @@ HYPER_CAPI_EXPORT extern HResult HFCreateImageStream(PHFImageData data, HFImageS
  * @return HResult indicating the success or failure of the operation.
  */
 HYPER_CAPI_EXPORT extern HResult HFReleaseImageStream(HFImageStream streamHandle);
+
+/**
+ * @brief Struct for image bitmap data.
+ */
+typedef struct HFImageBitmapData {
+    uint8_t *data;    ///< Pointer to the image data.
+    HInt32 width;     ///< Width of the image.
+    HInt32 height;    ///< Height of the image.
+    HInt32 channels;  ///< Number of channels in the image, only support 3 channels or 1 channel.
+} HFImageBitmapData, *PHFImageBitmapData;
+
+/**
+ * @brief Create a image bitmap from data, default pixel format is BGR.
+ *
+ * @param data Pointer to the image bitmap data structure.
+ * @param handle Pointer to the image bitmap handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCreateImageBitmap(PHFImageBitmapData data, HFImageBitmap *handle);
+
+/**
+ * @brief Create a image bitmap from file path, default pixel format is BGR.
+ *
+ * @param filePath The path to the image file.
+ * @param channels The number of channels in the image, only support 3 channels or 1 channel.
+ * @param handle Pointer to the image bitmap handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCreateImageBitmapFromFilePath(HPath filePath, HInt32 channels, HFImageBitmap *handle);
+
+/**
+ * @brief Copy an image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param copyHandle Pointer to the image bitmap handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapCopy(HFImageBitmap handle, HFImageBitmap *copyHandle);
+
+/**
+ * @brief Release the image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFReleaseImageBitmap(HFImageBitmap handle);
+
+/**
+ * @brief Create a image stream from image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param rotation The rotation angle of the image.
+ * @param streamHandle Pointer to the image stream handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCreateImageStreamFromImageBitmap(HFImageBitmap handle, HFRotation rotation, HFImageStream *streamHandle);
+
+/**
+ * @brief Create a image bitmap from image stream.
+ *
+ * @param streamHandle Pointer to the image stream handle.
+ * @param handle Pointer to the image bitmap handle that will be returned.
+ * @param is_rotate Whether to rotate the image.
+ * @param scale The scale of the image.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCreateImageBitmapFromImageStreamProcess(HFImageStream streamHandle, HFImageBitmap *handle, int is_rotate,
+                                                                           float scale);
+
+/**
+ * @brief Write the image bitmap to a file.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param filePath The path to the image file.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapWriteToFile(HFImageBitmap handle, HPath filePath);
+
+/**
+ * @brief Draw a rectangle on the image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param rect The rectangle to be drawn.
+ * @param color The color of the rectangle.
+ * @param thickness The thickness of the rectangle.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapDrawRect(HFImageBitmap handle, HFaceRect rect, HColor color, HInt32 thickness);
+
+/**
+ * @brief Draw a circle on the image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param point The center point of the circle.
+ * @param radius The radius of the circle.
+ * @param color The color of the circle.
+ * @param thickness The thickness of the circle.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapDrawCircleF(HFImageBitmap handle, HPoint2f point, HInt32 radius, HColor color, HInt32 thickness);
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapDrawCircle(HFImageBitmap handle, HPoint2i point, HInt32 radius, HColor color, HInt32 thickness);
+
+/**
+ * @brief Get the data of the image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle.
+ * @param data Pointer to the image bitmap data structure.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapGetData(HFImageBitmap handle, PHFImageBitmapData data);
+
+/**
+ * @brief Show the image bitmap.
+ *
+ * @param handle Pointer to the image bitmap handle, must rely on opencv's gui functionality
+ * @param title The title of the image.
+ * @param delay The delay time of the image.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFImageBitmapShow(HFImageBitmap handle, HString title, HInt32 delay);
 
 /************************************************************************
  * Resource Function
@@ -106,6 +266,14 @@ HYPER_CAPI_EXPORT extern HResult HFReleaseImageStream(HFImageStream streamHandle
 HYPER_CAPI_EXPORT extern HResult HFLaunchInspireFace(HPath resourcePath);
 
 /**
+ * @brief Reload InspireFace SDK
+ * Reload the InspireFace SDK, releasing all allocated resources.
+ * @param resourcePath Initializes the path to the resource file that needs to be loaded
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFReloadInspireFace(HPath resourcePath);
+
+/**
  * @brief Terminate InspireFace SDK
  * Terminate the InspireFace SDK, releasing all allocated resources.
  * This should be called at the end of your program to ensure proper cleanup.
@@ -113,8 +281,92 @@ HYPER_CAPI_EXPORT extern HResult HFLaunchInspireFace(HPath resourcePath);
  * */
 HYPER_CAPI_EXPORT extern HResult HFTerminateInspireFace();
 
+/**
+ * @brief Query InspireFace SDK launch status
+ * Query the launch status of the InspireFace SDK.
+ * @param status Pointer to the status variable that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFQueryInspireFaceLaunchStatus(HInt32 *status);
+
 /************************************************************************
- * FaceContext
+ * Extended Interface Based on Third-party Hardware Devices
+ *
+ * According to different manufacturers' devices, manufacturers typically perform deep customization and optimization, such as neural network
+ * inference computation, geometric image acceleration computation, and deeply customized device interfaces, etc. These types of functionalities are
+ * usually difficult to abstract, so they are placed in extension module APIs, involving hybrid computing, heterogeneous computing, multi-device
+ * computing, and other features.
+ ************************************************************************/
+
+/**
+ * @brief Set the rockchip dma heap path
+ * By default, we have already configured the DMA Heap address used by RGA on RK devices.
+ * If you wish to customize this address, you can modify it through this API.
+ * @param path The path to the rockchip dma heap
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFSetExpansiveHardwareRockchipDmaHeapPath(HPath path);
+
+/**
+ * @brief Query the rockchip dma heap path
+ * @param path Pointer to a pre-allocated character array that will store the returned path.
+ * The array should be at least 256 bytes in size.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFQueryExpansiveHardwareRockchipDmaHeapPath(HString path);
+
+/**
+ * @brief Enum for Apple CoreML inference mode.
+ */
+typedef enum HFAppleCoreMLInferenceMode {
+    HF_APPLE_COREML_INFERENCE_MODE_CPU = 0,  ///< CPU Only.
+    HF_APPLE_COREML_INFERENCE_MODE_GPU = 1,  ///< GPU first.
+    HF_APPLE_COREML_INFERENCE_MODE_ANE = 2,  ///< Automatic selection, ANE first.
+} HFAppleCoreMLInferenceMode;
+
+/**
+ * @brief Set the Apple CoreML inference mode, must be called before HFCreateInspireFaceSession.
+ * @param mode The inference mode to be set.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFSetAppleCoreMLInferenceMode(HFAppleCoreMLInferenceMode mode);
+
+/**
+ * @brief Set the CUDA device id, must be called before HFCreateInspireFaceSession.
+ * @param device_id The device id to be set.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFSetCudaDeviceId(int32_t device_id);
+
+/**
+ * @brief Get the CUDA device id, must be called after HFCreateInspireFaceSession.
+ * @param device_id Pointer to the device id to be returned.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFGetCudaDeviceId(int32_t *device_id);
+
+/**
+ * @brief Print the CUDA device information.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFPrintCudaDeviceInfo();
+
+/**
+ * @brief Get the number of CUDA devices.
+ * @param num_devices Pointer to the number of CUDA devices to be returned.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFGetNumCudaDevices(int32_t *num_devices);
+
+/**
+ * @brief Check if the CUDA device is supported.
+ * @param support The support flag to be checked.
+ * @return HResult indicating the success or failure of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFCheckCudaDeviceSupport(int32_t *is_support);
+
+/************************************************************************
+ * FaceSession
  ************************************************************************/
 
 /**
@@ -132,15 +384,16 @@ typedef struct HFSessionCustomParameter {
     HInt32 enable_face_quality;          ///< Enable face quality detection feature.
     HInt32 enable_face_attribute;        ///< Enable face attribute prediction feature.
     HInt32 enable_interaction_liveness;  ///< Enable interaction for liveness detection feature.
+    HInt32 enable_detect_mode_landmark;  ///< Enable landmark detection in detection mode
 } HFSessionCustomParameter, *PHFSessionCustomParameter;
 
 /**
  * @brief Enumeration for face detection modes.
  */
 typedef enum HFDetectMode {
-    HF_DETECT_MODE_ALWAYS_DETECT,  ///< Image detection mode, always detect, applicable to images.
-    HF_DETECT_MODE_LIGHT_TRACK,    ///< Video detection mode, face tracking, applicable to video
-                                   ///< streaming, front camera.
+    HF_DETECT_MODE_ALWAYS_DETECT,       ///< Image detection mode, always detect, applicable to images.
+    HF_DETECT_MODE_LIGHT_TRACK,         ///< Video detection mode, face tracking, applicable to video
+                                        ///< streaming, front camera.
     HF_DETECT_MODE_TRACK_BY_DETECTION,  ///< Video detection mode, face tracking, applicable to high
                                         ///< resolution, monitoring, capturing
                                         //   (You need a specific option turned on at compile time
@@ -161,9 +414,8 @@ typedef enum HFDetectMode {
  * @param handle Pointer to the context handle that will be returned.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFCreateInspireFaceSession(
-  HFSessionCustomParameter parameter, HFDetectMode detectMode, HInt32 maxDetectFaceNum,
-  HInt32 detectPixelLevel, HInt32 trackByDetectModeFPS, HFSession *handle);
+HYPER_CAPI_EXPORT extern HResult HFCreateInspireFaceSession(HFSessionCustomParameter parameter, HFDetectMode detectMode, HInt32 maxDetectFaceNum,
+                                                            HInt32 detectPixelLevel, HInt32 trackByDetectModeFPS, HFSession *handle);
 
 /**
  * @brief Create a session from a resource file with additional options.
@@ -179,9 +431,8 @@ HYPER_CAPI_EXPORT extern HResult HFCreateInspireFaceSession(
  * @param handle Pointer to the context handle that will be returned.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFCreateInspireFaceSessionOptional(
-  HOption customOption, HFDetectMode detectMode, HInt32 maxDetectFaceNum, HInt32 detectPixelLevel,
-  HInt32 trackByDetectModeFPS, HFSession *handle);
+HYPER_CAPI_EXPORT extern HResult HFCreateInspireFaceSessionOptional(HOption customOption, HFDetectMode detectMode, HInt32 maxDetectFaceNum,
+                                                                    HInt32 detectPixelLevel, HInt32 trackByDetectModeFPS, HFSession *handle);
 
 /**
  * @brief Release the session.
@@ -222,6 +473,7 @@ typedef struct HFMultipleFaceData {
     HInt32 detectedNum;        ///< Number of faces detected.
     HFaceRect *rects;          ///< Array of bounding rectangles for each face.
     HInt32 *trackIds;          ///< Array of track IDs for each face.
+    HFloat *detConfidence;     ///< Array of detection confidence for each face.
     HFFaceEulerAngle angles;   ///< Euler angles for each face.
     PHFFaceBasicToken tokens;  ///< Tokens associated with each face.
 } HFMultipleFaceData, *PHFMultipleFaceData;
@@ -234,19 +486,17 @@ typedef struct HFMultipleFaceData {
  * @param previewSize The size of the preview for tracking.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFSessionSetTrackPreviewSize(HFSession session,
-                                                              HInt32 previewSize);
+HYPER_CAPI_EXPORT extern HResult HFSessionSetTrackPreviewSize(HFSession session, HInt32 previewSize);
 
 /**
  * @brief Set the minimum number of face pixels that the face detector can capture, and people below
  * this number will be filtered.
  *
  * @param session Handle to the session.
- * @param minSize The minimum pixel value, default value is 24.
+ * @param minSize The minimum pixel value, default value is 0.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFSessionSetFilterMinimumFacePixelSize(HFSession session,
-                                                                        HInt32 minSize);
+HYPER_CAPI_EXPORT extern HResult HFSessionSetFilterMinimumFacePixelSize(HFSession session, HInt32 minSize);
 
 /**
  * @brief Set the face detect threshold in the session.
@@ -255,8 +505,34 @@ HYPER_CAPI_EXPORT extern HResult HFSessionSetFilterMinimumFacePixelSize(HFSessio
  * @param detectMode The mode of the detection mode for tracking.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFSessionSetFaceDetectThreshold(HFSession session,
-                                                                 HFloat threshold);
+HYPER_CAPI_EXPORT extern HResult HFSessionSetFaceDetectThreshold(HFSession session, HFloat threshold);
+
+/**
+ * @brief Set the track mode smooth ratio in the session. default value is  0.05
+ *
+ * @param session Handle to the session.
+ * @param ratio The smooth ratio value.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFSessionSetTrackModeSmoothRatio(HFSession session, HFloat ratio);
+
+/**
+ * @brief Set the track mode num smooth cache frame in the session. default value is 5
+ *
+ * @param session Handle to the session.
+ * @param num The num smooth cache frame value.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFSessionSetTrackModeNumSmoothCacheFrame(HFSession session, HInt32 num);
+
+/**
+ * @brief Set the track model detect interval in the session. default value is 20
+ *
+ * @param session Handle to the session.
+ * @param num The detect interval value.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFSessionSetTrackModeDetectInterval(HFSession session, HInt32 num);
 
 /**
  * @brief Run face tracking in the session.
@@ -266,8 +542,7 @@ HYPER_CAPI_EXPORT extern HResult HFSessionSetFaceDetectThreshold(HFSession sessi
  * @param results Pointer to the structure where the results will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFExecuteFaceTrack(HFSession session, HFImageStream streamHandle,
-                                                    PHFMultipleFaceData results);
+HYPER_CAPI_EXPORT extern HResult HFExecuteFaceTrack(HFSession session, HFImageStream streamHandle, PHFMultipleFaceData results);
 
 /**
  * @brief Copies the data from a HF_FaceBasicToken to a specified buffer.
@@ -284,8 +559,7 @@ HYPER_CAPI_EXPORT extern HResult HFExecuteFaceTrack(HFSession session, HFImageSt
  *         if the operation was successful, or an error code if the buffer was too small
  *         or if any other error occurred.
  */
-HYPER_CAPI_EXPORT extern HResult HFCopyFaceBasicToken(HFFaceBasicToken token, HPBuffer buffer,
-                                                      HInt32 bufferSize);
+HYPER_CAPI_EXPORT extern HResult HFCopyFaceBasicToken(HFFaceBasicToken token, HPBuffer buffer, HInt32 bufferSize);
 
 /**
  * @brief Retrieves the size of the data contained in a HF_FaceBasicToken.
@@ -316,9 +590,30 @@ HYPER_CAPI_EXPORT extern HResult HFGetNumOfFaceDenseLandmark(HPInt32 num);
  * @param num Number of landmark points
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceDenseLandmarkFromFaceToken(HFFaceBasicToken singleFace,
-                                                                     HPoint2f *landmarks,
-                                                                     HInt32 num);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceDenseLandmarkFromFaceToken(HFFaceBasicToken singleFace, HPoint2f *landmarks, HInt32 num);
+
+/**
+ * @brief Get the five key points from the face token.
+ * @param singleFace Basic token representing a single face.
+ * @param landmarks Pre-allocated memory address of the array for 2D floating-point coordinates.
+ * @param num Number of landmark points
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFGetFaceFiveKeyPointsFromFaceToken(HFFaceBasicToken singleFace, HPoint2f *landmarks, HInt32 num);
+
+/**
+ * @brief Set the enable cost spend
+ * @param value The enable cost spend value
+ * @return int32_t Status code of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFSessionSetEnableTrackCostSpend(HFSession session, int value);
+
+/**
+ * @brief Print the cost spend
+ * @param session The session handle
+ * @return int32_t Status code of the operation.
+ * */
+HYPER_CAPI_EXPORT extern HResult HFSessionPrintTrackCostSpend(HFSession session);
 
 /************************************************************************
  * Face Recognition
@@ -343,8 +638,7 @@ typedef struct HFFaceFeature {
  * @param feature Pointer to the extracted face feature.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFaceFeatureExtract(HFSession session, HFImageStream streamHandle,
-                                                      HFFaceBasicToken singleFace,
+HYPER_CAPI_EXPORT extern HResult HFFaceFeatureExtract(HFSession session, HFImageStream streamHandle, HFFaceBasicToken singleFace,
                                                       PHFFaceFeature feature);
 
 /**
@@ -356,10 +650,18 @@ HYPER_CAPI_EXPORT extern HResult HFFaceFeatureExtract(HFSession session, HFImage
  * @param feature Pointer to the buffer where the extracted feature will be copied.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFaceFeatureExtractCpy(HFSession session,
-                                                         HFImageStream streamHandle,
-                                                         HFFaceBasicToken singleFace,
-                                                         HPFloat feature);
+HYPER_CAPI_EXPORT extern HResult HFFaceFeatureExtractCpy(HFSession session, HFImageStream streamHandle, HFFaceBasicToken singleFace, HPFloat feature);
+
+/**
+ * @brief Get the face alignment image.
+ * @param session Handle to the session.
+ * @param streamHandle Handle to the data buffer representing the camera stream component.
+ * @param singleFace Basic token representing a single face.
+ * @param handle Pointer to the handle that will be returned.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFFaceGetFaceAlignmentImage(HFSession session, HFImageStream streamHandle, HFFaceBasicToken singleFace,
+                                                             HFImageBitmap *handle);
 
 /************************************************************************
  * Feature Hub
@@ -375,18 +677,24 @@ typedef enum HFSearchMode {
 } HFSearchMode;
 
 /**
+ * @brief Primary key mode for face feature management.
+ */
+typedef enum HFPKMode {
+    HF_PK_AUTO_INCREMENT = 0,  ///< Auto-increment mode for primary key.
+    HF_PK_MANUAL_INPUT,        ///< Manual input mode for primary key.
+} HFPKMode;
+
+/**
  * @brief Struct for database configuration.
  *
- * This struct holds the configuration settings for using a database in the face recognition
- * context.
+ * This struct holds the configuration settings for using a database in the face recognition context.
  */
 typedef struct HFFeatureHubConfiguration {
-    HInt32 featureBlockNum;  ///< The order of magnitude of face feature database is N * 512, and 20
-                             ///< is recommended by default
-    HInt32 enablePersistence;  ///< Flag to enable or disable the use of the database.
-    HString dbPath;            ///< Path to the database file.
-    float searchThreshold;     ///< Threshold for face search
-    HFSearchMode searchMode;   ///< Mode of face search
+    HFPKMode primaryKeyMode;    ///< Primary key mode(The id increment mode is recommended)
+    HInt32 enablePersistence;   ///< Flag to enable or disable the use of the database.
+    HString persistenceDbPath;  ///< Path to the database file.
+    float searchThreshold;      ///< Threshold for face search
+    HFSearchMode searchMode;    ///< Mode of face search
 } HFFeatureHubConfiguration;
 
 /**
@@ -413,9 +721,9 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubDataDisable();
  * This struct associates a custom identifier and a tag with a specific face feature.
  */
 typedef struct HFFaceFeatureIdentity {
-    HInt32 customId;         ///< Custom identifier for the face feature.
-    HString tag;             ///< Tag associated with the face feature.
+    HFaceId id;              ///< If you use automatic assignment id mode when inserting, ignore it.
     PHFFaceFeature feature;  ///< Pointer to the face feature.
+    // HString tag;                 ///< Not supported yet
 } HFFaceFeatureIdentity, *PHFFaceFeatureIdentity;
 
 /**
@@ -424,7 +732,7 @@ typedef struct HFFaceFeatureIdentity {
 typedef struct HFSearchTopKResults {
     HInt32 size;         ///< The number of faces searched
     HPFloat confidence;  ///< Search confidence(it has already been filtered once by the threshold)
-    HPInt32 customIds;   ///< fACE customIds
+    HPFaceId ids;        ///< Searched face ids
 } HFSearchTopKResults, *PHFSearchTopKResults;
 
 /**
@@ -441,15 +749,67 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearchThresholdSetting(float th
 
 /**
  * @brief Perform a one-to-one comparison of two face features.
+ *  Result is a cosine similarity score, not a percentage similarity.
  *
  * @param session Handle to the session.
  * @param feature1 The first face feature for comparison.
  * @param feature2 The second face feature for comparison.
  * @param result Pointer to the floating-point value where the comparison result will be stored.
+ *               The result is a cosine similarity score, not a percentage similarity.
+ *               The score ranges from -1 to 1, where 1 indicates identical features,
+ *               0 indicates orthogonal features, and -1 indicates opposite features.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFaceComparison(HFFaceFeature feature1, HFFaceFeature feature2,
-                                                  HPFloat result);
+HYPER_CAPI_EXPORT extern HResult HFFaceComparison(HFFaceFeature feature1, HFFaceFeature feature2, HPFloat result);
+
+/**
+ * @brief Get recommended cosine threshold from loaded resource.
+ *  Use it to determine face similarity. Note: it's just a reference and may not be optimal for your task.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFGetRecommendedCosineThreshold(HPFloat threshold);
+
+/**
+ * @brief Convert cosine similarity to percentage similarity.
+ *  This is a nonlinear transformation function. You can adjust curve parameters to map the similarity distribution you need.
+ * @note The conversion parameters are primarily read from the Resource file configuration, as different models
+ *       have different conversion parameters. The parameters provided in the Resource file are only reference
+ *       values. If they do not meet your specific use case requirements, you can implement your own conversion
+ *       function.
+ * @param similarity The cosine similarity score.
+ * @param result Pointer to the floating-point value where the percentage similarity will be stored.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFCosineSimilarityConvertToPercentage(HFloat similarity, HPFloat result);
+
+/**
+ * @brief Similarity converter configuration.
+ */
+typedef struct HFSimilarityConverterConfig {
+    HFloat threshold;    ///< If you think that the threshold for judging the same person using cosine is some value such as 0.42,
+                         // you need to convert him to a percentage of 0.6(pass), you can modify it.
+    HFloat middleScore;  ///< Cosine threshold converted to a percentage reference value,
+                         // usually set 0.6 or 0.5, greater than it indicates similar, pass
+    HFloat steepness;    ///< Steepness of the curve, usually set 8.0
+    HFloat outputMin;    ///< Minimum value of output range, usually set 0.01
+    HFloat outputMax;    ///< Maximum value of output range, usually set 1.0
+} HFSimilarityConverterConfig, *PHFSimilarityConverterConfig;
+
+/**
+ * @brief Update the similarity converter configuration.
+ * @note The default configuration is loaded from the resource file during initialization.
+ *       This function allows you to override those default settings if needed.
+ * @param config The new similarity converter configuration to apply.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFUpdateCosineSimilarityConverter(HFSimilarityConverterConfig config);
+
+/**
+ * @brief Get the similarity converter configuration.
+ * @param config Pointer to the similarity converter configuration to be filled.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFGetCosineSimilarityConverter(PHFSimilarityConverterConfig config);
 
 /**
  * @brief Get the length of the face feature.
@@ -465,7 +825,7 @@ HYPER_CAPI_EXPORT extern HResult HFGetFeatureLength(HPInt32 num);
  * @param featureIdentity The face feature identity to be inserted.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFeatureHubInsertFeature(HFFaceFeatureIdentity featureIdentity);
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubInsertFeature(HFFaceFeatureIdentity featureIdentity, HPFaceId allocId);
 
 /**
  * @brief Search for the most similar face feature in the features group.
@@ -476,9 +836,7 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubInsertFeature(HFFaceFeatureIdentity
  * @param mostSimilar Pointer to the most similar face feature identity found.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearch(HFFaceFeature searchFeature,
-                                                        HPFloat confidence,
-                                                        PHFFaceFeatureIdentity mostSimilar);
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearch(HFFaceFeature searchFeature, HPFloat confidence, PHFFaceFeatureIdentity mostSimilar);
 
 /**
  * @brief Search for the most similar k facial features in the feature group
@@ -488,9 +846,7 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearch(HFFaceFeature searchFeat
  * @param PHFSearchTopKResults Output search result
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearchTopK(HFFaceFeature searchFeature,
-                                                            HInt32 topK,
-                                                            PHFSearchTopKResults results);
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearchTopK(HFFaceFeature searchFeature, HInt32 topK, PHFSearchTopKResults results);
 
 /**
  * @brief Remove a face feature from the features group based on custom ID.
@@ -498,7 +854,7 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceSearchTopK(HFFaceFeature search
  * @param customId The custom ID of the feature to be removed.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceRemove(HInt32 customId);
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceRemove(HFaceId id);
 
 /**
  * @brief Update a face feature identity in the features group.
@@ -515,8 +871,7 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubFaceUpdate(HFFaceFeatureIdentity fe
  * @param identity Pointer to the face feature identity to be retrieved.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFeatureHubGetFaceIdentity(HInt32 customId,
-                                                             PHFFaceFeatureIdentity identity);
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubGetFaceIdentity(HFaceId customId, PHFFaceFeatureIdentity identity);
 
 /**
  * @brief Get the count of face features in the features group.
@@ -532,6 +887,21 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubGetFaceCount(HInt32 *count);
  * @return HResult indicating the success or failure of the operation.
  */
 HYPER_CAPI_EXPORT extern HResult HFFeatureHubViewDBTable();
+
+/**
+ * @brief Struct representing the existing ids in the database.
+ */
+typedef struct HFFeatureHubExistingIds {
+    HInt32 size;   ///< The number of ids
+    HPFaceId ids;  ///< The ids
+} HFFeatureHubExistingIds, *PHFFeatureHubExistingIds;
+
+/**
+ * @brief Get all ids in the database.
+ * @param ids Output parameter to store the ids.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFFeatureHubGetExistingIds(PHFFeatureHubExistingIds ids);
 
 /************************************************************************
  * Face Pipeline
@@ -549,9 +919,7 @@ HYPER_CAPI_EXPORT extern HResult HFFeatureHubViewDBTable();
  * @param parameter Custom parameters for processing the faces.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFMultipleFacePipelineProcess(HFSession session,
-                                                               HFImageStream streamHandle,
-                                                               PHFMultipleFaceData faces,
+HYPER_CAPI_EXPORT extern HResult HFMultipleFacePipelineProcess(HFSession session, HFImageStream streamHandle, PHFMultipleFaceData faces,
                                                                HFSessionCustomParameter parameter);
 
 /**
@@ -566,9 +934,7 @@ HYPER_CAPI_EXPORT extern HResult HFMultipleFacePipelineProcess(HFSession session
  * @param customOption An integer representing a custom option for processing.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFMultipleFacePipelineProcessOptional(HFSession session,
-                                                                       HFImageStream streamHandle,
-                                                                       PHFMultipleFaceData faces,
+HYPER_CAPI_EXPORT extern HResult HFMultipleFacePipelineProcessOptional(HFSession session, HFImageStream streamHandle, PHFMultipleFaceData faces,
                                                                        HInt32 customOption);
 
 /**
@@ -592,8 +958,7 @@ typedef struct HFRGBLivenessConfidence {
  * @param confidence Pointer to the structure where RGB liveness confidence data will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetRGBLivenessConfidence(HFSession session,
-                                                            PHFRGBLivenessConfidence confidence);
+HYPER_CAPI_EXPORT extern HResult HFGetRGBLivenessConfidence(HFSession session, PHFRGBLivenessConfidence confidence);
 
 /**
  * @brief Struct representing face mask confidence.
@@ -616,8 +981,7 @@ typedef struct HFFaceMaskConfidence {
  * @param confidence Pointer to the structure where face mask confidence data will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceMaskConfidence(HFSession session,
-                                                         PHFFaceMaskConfidence confidence);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceMaskConfidence(HFSession session, PHFFaceMaskConfidence confidence);
 
 /**
  * @brief Struct representing face quality predict confidence.
@@ -640,8 +1004,7 @@ typedef struct HFFaceQualityConfidence {
  * @param confidence Pointer to the structure where face mask confidence data will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceQualityConfidence(HFSession session,
-                                                            PHFFaceQualityConfidence confidence);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceQualityConfidence(HFSession session, PHFFaceQualityConfidence confidence);
 
 /**
  * @brief Detect the quality of a face in an image.
@@ -653,39 +1016,37 @@ HYPER_CAPI_EXPORT extern HResult HFGetFaceQualityConfidence(HFSession session,
  * @param confidence Pointer to a floating-point value where the quality confidence will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFFaceQualityDetect(HFSession session, HFFaceBasicToken singleFace,
-                                                     HFloat *confidence);
+HYPER_CAPI_EXPORT extern HResult HFFaceQualityDetect(HFSession session, HFFaceBasicToken singleFace, HFloat *confidence);
 
 /**
  * @brief Facial states in the face interaction module.
  */
-typedef struct HFFaceIntereactionState {
+typedef struct HFFaceInteractionState {
     HInt32 num;                        ///< Number of faces detected.
     HPFloat leftEyeStatusConfidence;   ///< Left eye state: confidence close to 1 means open, close
                                        ///< to 0 means closed.
     HPFloat rightEyeStatusConfidence;  ///< Right eye state: confidence close to 1 means open, close
                                        ///< to 0 means closed.
-} HFFaceIntereactionState, *PHFFaceIntereactionState;
+} HFFaceInteractionState, *PHFFaceInteractionState;
 
 /**
  * @brief Get the prediction results of face interaction.
  * @param session Handle to the session.
  * @param result Facial state prediction results in the face interaction module.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceIntereactionStateResult(HFSession session,
-                                                                  PHFFaceIntereactionState result);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceInteractionStateResult(HFSession session, PHFFaceInteractionState result);
 
 /**
  * @brief Actions detected in the face interaction module.
  */
-typedef struct HFFaceIntereactionsActions {
+typedef struct HFFaceInteractionsActions {
     HInt32 num;         ///< Number of actions detected.
     HPInt32 normal;     ///< Normal actions.
     HPInt32 shake;      ///< Shake actions.
     HPInt32 jawOpen;    ///< Jaw open actions.
-    HPInt32 headRiase;  ///< Head raise actions.
+    HPInt32 headRaise;  ///< Head raise actions.
     HPInt32 blink;      ///< Blink actions.
-} HFFaceIntereactionsActions, *PHFFaceIntereactionsActions;
+} HFFaceInteractionsActions, *PHFFaceInteractionsActions;
 
 /**
  * @brief Get the prediction results of face interaction actions.
@@ -693,8 +1054,7 @@ typedef struct HFFaceIntereactionsActions {
  * @param actions Facial action prediction results in the face interaction module.
  * @return HResult indicating success or failure of the function call.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceIntereactionActionsResult(
-  HFSession session, PHFFaceIntereactionsActions actions);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceInteractionActionsResult(HFSession session, PHFFaceInteractionsActions actions);
 /**
  * @brief Struct representing face attribute results.
  *
@@ -733,8 +1093,7 @@ typedef struct HFFaceAttributeResult {
  * @param results Pointer to the structure where face attribute results will be stored.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFGetFaceAttributeResult(HFSession session,
-                                                          PHFFaceAttributeResult results);
+HYPER_CAPI_EXPORT extern HResult HFGetFaceAttributeResult(HFSession session, PHFFaceAttributeResult results);
 
 /************************************************************************
  * System Function
@@ -760,6 +1119,21 @@ typedef struct HFInspireFaceVersion {
 HYPER_CAPI_EXPORT extern HResult HFQueryInspireFaceVersion(PHFInspireFaceVersion version);
 
 /**
+ * @brief Struct representing the extended information of the InspireFace library.
+ */
+typedef struct HFInspireFaceExtendedInformation {
+    HChar information[256];
+    // TODO: Add more information
+} HFInspireFaceExtendedInformation, *PHFInspireFaceExtendedInformation;
+
+/**
+ * @brief Get the extended information of the InspireFace library.
+ *
+ * This function retrieves the extended information of the InspireFace library.
+ */
+HYPER_CAPI_EXPORT extern HResult HFQueryInspireFaceExtendedInformation(PHFInspireFaceExtendedInformation information);
+
+/**
  * @brief SDK built-in log level mode
  * */
 typedef enum HFLogLevel {
@@ -767,10 +1141,8 @@ typedef enum HFLogLevel {
     HF_LOG_DEBUG,     // Debug level for detailed system information mostly useful for developers
     HF_LOG_INFO,      // Information level for general system information about operational status
     HF_LOG_WARN,      // Warning level for non-critical issues that might need attention
-    HF_LOG_ERROR,     // Error level for error events that might still allow the application to
-                      // continue running
-    HF_LOG_FATAL  // Fatal level for severe error events that will presumably lead the application
-                  // to abort
+    HF_LOG_ERROR,     // Error level for error events that might still allow the application to continue running
+    HF_LOG_FATAL      // Fatal level for severe error events that will presumably lead the application to abort
 } HFLogLevel;
 
 /**
@@ -782,6 +1154,16 @@ HYPER_CAPI_EXPORT extern HResult HFSetLogLevel(HFLogLevel level);
  * @brief Disable the log function. Like HFSetLogLevel(HF_LOG_NONE)
  * */
 HYPER_CAPI_EXPORT extern HResult HFLogDisable();
+
+/**
+ * @brief Print the log.
+ * @param level The log level.
+ * @param format The log format.
+ * @param ... The log arguments.
+ * @warning The maximum buffer size for log messages is 1024 bytes. Messages longer than this will be truncated.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFLogPrint(HFLogLevel level, HFormat format, ...);
 
 /********************************DEBUG Utils****************************************/
 
@@ -806,8 +1188,7 @@ HYPER_CAPI_EXPORT extern void HFDeBugImageStreamImShow(HFImageStream streamHandl
  * @param savePath The path to which the image is written.
  * @return HResult indicating the success or failure of the operation.
  */
-HYPER_CAPI_EXPORT extern HResult HFDeBugImageStreamDecodeSave(HFImageStream streamHandle,
-                                                              HPath savePath);
+HYPER_CAPI_EXPORT extern HResult HFDeBugImageStreamDecodeSave(HFImageStream streamHandle, HPath savePath);
 
 /**
  * @brief Display current resource management statistics.
@@ -824,8 +1205,50 @@ HYPER_CAPI_EXPORT extern HResult HFDeBugImageStreamDecodeSave(HFImageStream stre
  */
 HYPER_CAPI_EXPORT extern HResult HFDeBugShowResourceStatistics();
 
+/**
+ * @brief Get the count of unreleased sessions.
+ *
+ * This function retrieves the count of sessions that have not been released yet.
+ *
+ * @param count Pointer to an integer where the count of unreleased sessions will be stored.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFDeBugGetUnreleasedSessionsCount(HInt32 *count);
+
+/**
+ * @brief Get the list of unreleased sessions.
+ *
+ * This function retrieves the list of sessions that have not been released yet.
+ *
+ * @param sessions Pointer to an array where the unreleased sessions will be stored.
+ * @param count The number of sessions to retrieve.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFDeBugGetUnreleasedSessions(HFSession *sessions, HInt32 count);
+
+/**
+ * @brief Get the count of unreleased image streams.
+ *
+ * This function retrieves the count of image streams that have not been released yet.
+ *
+ * @param count Pointer to an integer where the count of unreleased image streams will be stored.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFDeBugGetUnreleasedStreamsCount(HInt32 *count);
+
+/**
+ * @brief Get the list of unreleased image streams.
+ *
+ * This function retrieves the list of image streams that have not been released yet.
+ *
+ * @param streams Pointer to an array where the unreleased image streams will be stored.
+ * @param count The number of image streams to retrieve.
+ * @return HResult indicating the success or failure of the operation.
+ */
+HYPER_CAPI_EXPORT extern HResult HFDeBugGetUnreleasedStreams(HFImageStream *streams, HInt32 count);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // HYPERFACEREPO_INSPIREFACE_H
+#endif  // INSPIREFACE_H

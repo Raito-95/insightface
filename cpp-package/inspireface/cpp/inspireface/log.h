@@ -1,5 +1,5 @@
-#ifndef LOG_MANAGER_H
-#define LOG_MANAGER_H
+#ifndef INSPIRE_FACE_LOG_H
+#define INSPIRE_FACE_LOG_H
 
 #include <mutex>
 #include <string>
@@ -27,11 +27,10 @@
 // Standard platform log macros
 #define INSPIRE_LOGD(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_DEBUG, __FILENAME__, __FUNCTION__, __LINE__, __VA_ARGS__)
 #define INSPIRE_LOGI(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_INFO, "", "", -1, __VA_ARGS__)
-#define INSPIRE_LOGW(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_WARN, __FILENAME__, "", __LINE__, __VA_ARGS__)
-#define INSPIRE_LOGE(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_ERROR, __FILENAME__, "", __LINE__, __VA_ARGS__)
-#define INSPIRE_LOGF(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_FATAL, __FILENAME__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define INSPIRE_LOGW(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_WARN, "", "", -1, __VA_ARGS__)
+#define INSPIRE_LOGE(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_ERROR, "", "", -1, __VA_ARGS__)
+#define INSPIRE_LOGF(...) inspire::LogManager::getInstance()->logStandard(inspire::ISF_LOG_FATAL, "", "", -1, __VA_ARGS__)
 #endif
-
 
 // Macro to set the global log level
 #define INSPIRE_SET_LOG_LEVEL(level) inspire::LogManager::getInstance()->setLogLevel(level)
@@ -39,15 +38,15 @@
 namespace inspire {
 
 // Log levels
-enum LogLevel {
-    ISF_LOG_NONE = 0,
-    ISF_LOG_DEBUG,
-    ISF_LOG_INFO,
-    ISF_LOG_WARN,
-    ISF_LOG_ERROR,
-    ISF_LOG_FATAL
-};
+enum LogLevel { ISF_LOG_NONE = 0, ISF_LOG_DEBUG, ISF_LOG_INFO, ISF_LOG_WARN, ISF_LOG_ERROR, ISF_LOG_FATAL };
 
+/**
+ * @class LogManager
+ * @brief A singleton class for logging messages to the console or Android logcat.
+ *
+ * This class provides methods to log messages of different severity levels (DEBUG, INFO, WARN, ERROR, FATAL)
+ * to the console or Android logcat based on the current log level setting.
+ */
 class INSPIRE_API LogManager {
 private:
     LogLevel currentLevel;
@@ -55,7 +54,7 @@ private:
     static std::mutex mutex;
 
     // Private constructor
-    LogManager() : currentLevel(ISF_LOG_DEBUG) {}  // Default log level is DEBUG
+    LogManager() : currentLevel(ISF_LOG_INFO) {}  // Default log level is INFO
 
 public:
     // Disable copy construction and assignment
@@ -84,28 +83,47 @@ public:
 #ifdef ANDROID
     // Method for logging on the Android platform
     void logAndroid(LogLevel level, const char* tag, const char* format, ...) const {
-        if (currentLevel == ISF_LOG_NONE || level < currentLevel) return;
+        if (currentLevel == ISF_LOG_NONE || level < currentLevel)
+            return;
 
         int androidLevel;
         switch (level) {
-            case ISF_LOG_DEBUG: androidLevel = ANDROID_LOG_DEBUG; break;
-            case ISF_LOG_INFO: androidLevel = ANDROID_LOG_INFO; break;
-            case ISF_LOG_WARN: androidLevel = ANDROID_LOG_WARN; break;
-            case ISF_LOG_ERROR: androidLevel = ANDROID_LOG_ERROR; break;
-            case ISF_LOG_FATAL: androidLevel = ANDROID_LOG_FATAL; break;
-            default: androidLevel = ANDROID_LOG_DEFAULT;
+            case ISF_LOG_DEBUG:
+                androidLevel = ANDROID_LOG_DEBUG;
+                break;
+            case ISF_LOG_INFO:
+                androidLevel = ANDROID_LOG_INFO;
+                break;
+            case ISF_LOG_WARN:
+                androidLevel = ANDROID_LOG_WARN;
+                break;
+            case ISF_LOG_ERROR:
+                androidLevel = ANDROID_LOG_ERROR;
+                break;
+            case ISF_LOG_FATAL:
+                androidLevel = ANDROID_LOG_FATAL;
+                break;
+            default:
+                androidLevel = ANDROID_LOG_DEFAULT;
         }
 
         va_list args;
         va_start(args, format);
         __android_log_vprint(androidLevel, tag, format, args);
         va_end(args);
+
+        // If the log level is fatal, flush the error stream and abort the program
+        if (level == ISF_LOG_FATAL) {
+            std::flush(std::cerr);
+            abort();
+        }
     }
 #else
     // Method for standard platform logging
     void logStandard(LogLevel level, const char* filename, const char* function, int line, const char* format, ...) const {
         // Check whether the current level is LOG NONE or the log level is not enough to log
-        if (currentLevel == ISF_LOG_NONE || level < currentLevel) return;
+        if (currentLevel == ISF_LOG_NONE || level < currentLevel)
+            return;
 
         // Build log prefix dynamically based on available data
         bool hasPrintedPrefix = false;
@@ -127,12 +145,14 @@ public:
             printf(": ");
         }
 
-        // Set text color for different log levels
+        // Set text color for different log levels, but only if not on iOS
+#ifndef TARGET_OS_IOS
         if (level == ISF_LOG_ERROR || level == ISF_LOG_FATAL) {
             printf("\033[1;31m");  // Red color for errors and fatal issues
         } else if (level == ISF_LOG_WARN) {
             printf("\033[1;33m");  // Yellow color for warnings
         }
+#endif
 
         // Print the actual log message
         va_list args;
@@ -140,19 +160,25 @@ public:
         vprintf(format, args);
         va_end(args);
 
-        // Reset text color if needed
+        // Reset text color if needed, but only if not on iOS
+#ifndef TARGET_OS_IOS
         if (level == ISF_LOG_ERROR || level == ISF_LOG_WARN || level == ISF_LOG_FATAL) {
             printf("\033[0m");  // Reset color
         }
-
-        printf("\n"); // New line after log message
-    }
-
-
 #endif
 
+        printf("\n");  // New line after log message
+
+        // If the log level is fatal, flush the error stream and abort the program
+        if (level == ISF_LOG_FATAL) {
+            std::flush(std::cerr);
+            abort();
+        }
+    }
+
+#endif
 };
 
-}   // namespace inspire
+}  // namespace inspire
 
-#endif // LOG_MANAGER_H
+#endif  // INSPIRE_FACE_LOG_H
